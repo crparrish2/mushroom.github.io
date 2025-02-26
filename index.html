@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GILES MUSHROOM DEFENSE</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        canvas {
+            background: #ddd;
+            display: block;
+            margin: 20px auto;
+        }
+        #startButton {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #instructions {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #defeatCounter {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>GILES MUSHROOM DEFENSE</h1>
+    <button id="startButton">Start</button>
+    <canvas id="gameCanvas"></canvas>
+    <div id="instructions">Place 10 towers then click Start to defend against the Mushroom King</div>
+    <div id="defeatCounter">OFWs SENT: 0</div>
+
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const instructions = document.getElementById("instructions");
+        const startButton = document.getElementById("startButton");
+	const defeatCounter = document.getElementById("defeatCounter");
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        const enemyImage = new Image();
+        enemyImage.src = "bearded_man.png";
+        
+        const towerImage = new Image();
+        towerImage.src = "mushroom.png";
+
+        let defeatedMarkers = []; // Stores positions of defeated enemies
+	let defeatedCount = 0;
+
+	const phrases = [
+            "Sending OFW!", "Keith Elliot Letter!", "It's a Loan!", "Carta Trouble!", 
+            "To Be Clear!", "INTERAC!"       
+
+	];
+
+
+
+        class Tower {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.range = 100;
+                this.cooldown = 0;
+            }
+            
+            draw() {
+                ctx.drawImage(towerImage, this.x - 15, this.y - 15, 30, 30);
+            }
+            
+            shoot(enemies) {
+                if (this.cooldown <= 0) {
+                    let target = enemies.find(e => Math.hypot(e.x - this.x, e.y - this.y) < this.range);
+                    if (target) {
+                        projectiles.push(new Projectile(this.x, this.y, target));
+                        if (defeatedCount < 100) {
+			this.cooldown = 30 - (round * 1.5);}
+			else {this.cooldown = 5;}
+                    }
+                } else {
+                    this.cooldown--;
+                }
+            }
+        }
+
+        class Enemy {
+            constructor() {
+                this.x = 50;
+                this.y = Math.random() * (canvas.height - 50) + 25;
+                this.speed = 1;
+                this.health = 3;
+            }
+            
+            draw() {
+                ctx.drawImage(enemyImage, this.x - 15, this.y - 15, 30, 30);
+            }
+            
+            move() {
+                this.x += this.speed;
+                if (this.x >= canvas.width) {
+                    gameOver();
+                }
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, target) {
+                this.x = x;
+                this.y = y;
+                this.target = target;
+                this.speed = 5 + round;
+            }
+            
+            move() {
+                let dx = this.target.x - this.x;
+                let dy = this.target.y - this.y;
+                let distance = Math.hypot(dx, dy);
+                this.x += (dx / distance) * this.speed;
+                this.y += (dy / distance) * this.speed;
+                
+                if (distance < 5) {
+                    this.target.health--;
+                    if (this.target.health <= 0) {
+                        let index = enemies.indexOf(this.target);
+                        if (index > -1) {
+                            let phrase = phrases[Math.floor(Math.random() * phrases.length)];
+                            defeatedMarkers.push({ x: this.target.x, y: this.target.y, text: phrase });
+                            enemies.splice(index, 1);
+			    defeatedCount++;
+                            defeatCounter.innerText = `OFWs SENT: ${defeatedCount}`;
+                        }
+                    }
+                    projectiles.splice(projectiles.indexOf(this), 1);
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let towers = [];
+        let enemies = [];
+        let projectiles = [];
+        let gameStarted = false;
+        let round = 1;
+        let enemyCount = 2;
+        let additionalTowers = 0;
+        let gameLoopActive = false;
+
+        canvas.addEventListener("click", function(event) {
+            if (!gameStarted && towers.length < 10 + additionalTowers) {
+                let rect = canvas.getBoundingClientRect();
+                let x = event.clientX - rect.left;
+                let y = event.clientY - rect.top;
+                let newTower = new Tower(x, y);
+                towers.push(newTower);
+                drawGame();
+            }
+        });
+
+        startButton.addEventListener("click", function() {
+            if (!gameStarted && towers.length >= 10 + (round - 1) * 2) {
+                gameStarted = true;
+                instructions.innerText = `ROUND ${round} - FIGHT!`;
+                startRound();
+            } else if (startButton.innerText === "TRY AGAIN") {
+                resetGame();
+            }
+        });
+
+        function startRound() {
+            enemies = [];
+            defeatedMarkers = []; // Clear previous defeated markers
+            for (let i = 0; i < enemyCount; i++) {
+                enemies.push(new Enemy());
+            }
+            gameLoopActive = true;
+            gameLoop(); 
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            towers.forEach(tower => tower.draw());
+            enemies.forEach(enemy => enemy.draw());
+            projectiles.forEach(projectile => projectile.draw());
+            
+            // Draw defeated markers
+            ctx.fillStyle = "red";
+            ctx.font = "10px Arial";
+            defeatedMarkers.forEach(marker => {
+                ctx.fillText(marker.text, marker.x - 30, marker.y + 5);
+            });
+        }
+
+	function gameLoop() {
+            if (!gameLoopActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            towers.forEach(tower => {
+                tower.draw();
+                tower.shoot(enemies);
+            });
+            
+            enemies.forEach(enemy => {
+                enemy.move();
+                enemy.draw();
+            });
+            
+            projectiles.forEach(projectile => {
+                projectile.move();
+                projectile.draw();
+            });
+            
+            drawGame();
+            if (enemies.length > 0) {
+                requestAnimationFrame(gameLoop);
+            } else {
+                gameStarted = false;
+                additionalTowers += round + 1;
+                instructions.innerText = `ROUND ${round} - COMPLETE - ADD ${round + 1} MORE TOWERS`;
+                round++;
+                enemyCount *= 2;
+                startButton.innerText = `Start Round ${round}`;
+            }
+        }
+
+	function gameOver() {
+            gameStarted = false;
+            gameLoopActive = false;
+            instructions.innerText = "GILES OVERWHELMED YOU WITH OFWs - YOUR'RE DEAD!";
+            startButton.innerText = "TRY AGAIN";
+        }
+
+        function resetGame() {
+            towers = [];
+            enemies = [];
+            projectiles = [];
+            round = 1;
+            enemyCount = 2;
+            additionalTowers = 0;
+            gameStarted = false;
+            gameLoopActive = false;
+        
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+            instructions.innerText = "Place 10 towers then click Start to defend against the Mushroom King";
+            startButton.innerText = "Start";
+        
+            drawGame();  // Ensures a fresh start
+        }
+    </script>
+</body>
+</html>
